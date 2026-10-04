@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { StyleSheet, Text, View, ScrollView, RefreshControl, ActivityIndicator, Pressable, Modal, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import {
   Command,
   Lock,
@@ -22,6 +23,7 @@ import {
   Send,
   X,
   Eye,
+  MonitorSmartphone,
 } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { Colors, Typography, Spacing, Radius } from '@/lib/theme';
@@ -79,6 +81,7 @@ const commandLabels: Record<string, string> = {
 };
 
 export default function ControlsScreen() {
+  const router = useRouter();
   const { selectedDeviceId } = useDeviceContext();
   const { data: commands, loading, sendCommand, reload } = useRemoteCommands(selectedDeviceId);
   const { settings, toggle } = useSettings();
@@ -131,6 +134,29 @@ export default function ControlsScreen() {
       <ScreenHeader title="کنترل از راه دور" subtitle="ارسال دستور و مدیریت دستگاه" icon={Command} />
 
       <View style={styles.body}>
+        {/* The only additive controller surface needed for live phone-2 video. */}
+        <Pressable
+          style={[styles.liveScreenBtn, !selectedDeviceId && styles.liveScreenBtnDisabled]}
+          disabled={!selectedDeviceId}
+          onPress={() => router.push('/remote-screen' as never)}
+        >
+          <LinearGradient
+            colors={[Colors.primary[500], Colors.accent[700]]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.liveScreenIcon}
+          >
+            <MonitorSmartphone size={25} color={Colors.onColor} strokeWidth={2.1} />
+          </LinearGradient>
+          <View style={styles.liveScreenTextWrap}>
+            <Text style={styles.liveScreenTitle}>نمایش زنده گوشی دوم</Text>
+            <Text style={styles.liveScreenDesc}>
+              {selectedDeviceId ? 'مشاهده صفحه با اجازه مستقیم گوشی دوم' : 'ابتدا یک گوشی متصل را انتخاب کنید'}
+            </Text>
+          </View>
+          <Eye size={19} color={Colors.primary[300]} strokeWidth={2.1} />
+        </Pressable>
+
         {/* Quick Commands Grid */}
         <Text style={styles.sectionLabel}>دستورات سریع</Text>
         <View style={styles.commandsGrid}>
@@ -340,6 +366,35 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.neutral[950], direction: 'rtl' },
   loadingContainer: { flex: 1, backgroundColor: Colors.neutral[950], justifyContent: 'center', alignItems: 'center', direction: 'rtl' },
   body: { padding: Spacing.md, paddingBottom: 100 },
+  liveScreenBtn: {
+    minHeight: 82,
+    marginBottom: Spacing.lg,
+    padding: Spacing.md,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.primary[500] + '55',
+    backgroundColor: Colors.primary[500] + '10',
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  liveScreenBtnDisabled: { opacity: 0.5 },
+  liveScreenIcon: { width: 52, height: 52, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
+  liveScreenTextWrap: { flex: 1 },
+  liveScreenTitle: {
+    fontFamily: Typography.fontFamily,
+    fontSize: Typography.sizes.md,
+    fontWeight: Typography.weights.bold,
+    color: Colors.neutral[0],
+    textAlign: 'right',
+  },
+  liveScreenDesc: {
+    fontFamily: Typography.fontFamily,
+    fontSize: Typography.sizes.xs,
+    color: Colors.neutral[400],
+    textAlign: 'right',
+    marginTop: 4,
+  },
   sectionLabel: { fontFamily: Typography.fontFamily, fontSize: Typography.sizes.md, fontWeight: Typography.weights.bold, color: Colors.neutral[300], marginBottom: Spacing.sm, marginTop: Spacing.sm, textAlign: 'right' },
   commandsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: Spacing.sm, marginBottom: Spacing.md },
   commandCard: { width: '48%', backgroundColor: Colors.neutral[850], borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.neutral[800], padding: Spacing.md, alignItems: 'center', gap: 6 },
