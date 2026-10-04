@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleProp, ViewStyle } from 'react-native';
 import {
   mediaDevices,
   MediaStream,
   RTCPeerConnection,
   RTCSessionDescription,
-  RTCView,
 } from 'react-native-webrtc';
 import { supabase } from './supabase';
 
@@ -174,113 +172,4 @@ export function useScreenBroadcaster(deviceId: string | null) {
 
   useEffect(() => () => release(), [release]);
   return { phase, error, start, stop, reset };
-}
-
-export function useScreenViewer(deviceId: string | null) {
-  const [phase, setPhase] = useState<SharePhase>('waiting');
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const pcRef = useRef<RTCPeerConnection | null>(null);
-  const sessionIdRef = useRef<string | null>(null);
-  const connectingRef = useRef(false);
-
-  const close = useCallback(async () => {
-    const id = sessionIdRef.current;
-    pcRef.current?.close();
-    pcRef.current = null;
-    sessionIdRef.current = null;
-    setStream(null);
-    if (id) {
-      await supabase
-        .from('screen_share_sessions')
-        .update({ status: 'stopped', updated_at: new Date().toISOString() })
-        .eq('id', id);
-    }
-  }, []);
-
-  const connectTo = useCallback(async (row: ScreenShareRow) => {
-    if (connectingRef.current || pcRef.current || !row.offer?.sdp) return;
-    connectingRef.current = true;
-    try {
-      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-      pcRef.current = pc;
-      sessionIdRef.current = row.id;
-      (pc as any).ontrack = (event: any) => {
-        const remote = event.streams?.[0];
-        if (remote) setStream(remote);
-      };
-      (pc as any).onconnectionstatechange = () => {
-        if (pc.connectionState === 'connected') setPhase('connected');
-        if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-          setError('ارتباط زنده قطع شد.');
-          setPhase('error');
-        }
-      };
-      await pc.setRemoteDescription(new RTCSessionDescription(row.offer));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      await waitForIceGathering(pc);
-      if (!pc.localDescription?.sdp) throw new Error('WebRTC answer was not created');
-      const { error: updateError } = await supabase
-        .from('screen_share_sessions')
-        .update({
-          answer: { type: 'answer', sdp: pc.localDescription.sdp },
-          status: 'connected',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', row.id);
-      if (updateError) throw updateError;
-      setPhase('connected');
-    } catch (cause) {
-      pcRef.current?.close();
-      pcRef.current = null;
-      sessionIdRef.current = null;
-      setError(cause instanceof Error ? cause.message : 'اتصال تصویر برقرار نشد.');
-      setPhase('error');
-    } finally {
-      connectingRef.current = false;
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!deviceId) {
-      setError('ابتدا گوشی دوم را انتخاب کنید.');
-      setPhase('error');
-      return;
-    }
-    let active = true;
-    const findOffer = async () => {
-      if (!active || pcRef.current) return;
-      const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-      const { data, error: queryError } = await supabase
-        .from('screen_share_sessions')
-        .select('id,device_id,status,offer,answer,created_at')
-        .eq('device_id', deviceId)
-        .eq('status', 'offered')
-        .gte('created_at', cutoff)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (queryError) {
-        setError('جدول اشتراک صفحه روی سرور فعال نشده است.');
-        setPhase('error');
-      } else if (data) {
-        await connectTo(data as ScreenShareRow);
-      }
-    };
-    void findOffer();
-    const timer = setInterval(findOffer, 1500);
-    return () => {
-      active = false;
-      clearInterval(timer);
-      pcRef.current?.close();
-      pcRef.current = null;
-    };
-  }, [connectTo, deviceId]);
-
-  return { phase, stream, error, close };
-}
-
-export function ScreenStreamView({ stream, style }: { stream: MediaStream; style?: StyleProp<ViewStyle> }) {
-  return <RTCView streamURL={stream.toURL()} objectFit="contain" mirror={false} style={style} />;
 }

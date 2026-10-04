@@ -1,18 +1,18 @@
 {
   "expo": {
-    "name": "device-control",
-    "slug": "device-control",
+    "name": "Companion English",
+    "slug": "companion-english",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "companionenglish",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
     "ios": {
       "supportsTablet": true
     },
     "android": {
-      "package": "com.devicecontrol.app",
+      "package": "com.devicecontrol.companion",
       "permissions": [
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION",

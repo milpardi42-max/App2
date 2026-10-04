@@ -22,12 +22,12 @@ import {
   Send,
   ScreenShare,
   Square,
+  GraduationCap,
 } from 'lucide-react-native';
 import { Colors, Typography, Spacing, Radius } from '@/lib/theme';
 import { toPersianDigits } from '@/lib/format';
 import { checkPairingStatus, markOffline, isSupabaseConfigured } from '@/lib/pairing';
 import { getPairingState, clearPairingState, clearDeviceId, type PairingState } from '@/lib/storage';
-import { clearRole } from '@/lib/role';
 import { useRealAgent, getAgentIdentity, type AgentSnapshot } from '@/lib/useRealAgent';
 import { useScreenBroadcaster } from '@/lib/liveScreen';
 
@@ -109,14 +109,6 @@ export default function AgentHomeScreen() {
     setPairing(null);
   }, [liveScreen.stop, pairing]);
 
-  const switchRole = useCallback(async () => {
-    if (pairing) await markOffline(pairing.deviceId);
-    await clearPairingState();
-    await clearDeviceId();
-    await clearRole();
-    router.replace('/welcome' as never);
-  }, [pairing, router]);
-
   if (checking) {
     return (
       <View style={[styles.root, styles.center]}>
@@ -182,8 +174,12 @@ export default function AgentHomeScreen() {
           <Text style={styles.footerNote}>
             مدل این دستگاه: {getAgentIdentity().deviceModel} • {getAgentIdentity().osVersion}
           </Text>
-          <Pressable onPress={switchRole} hitSlop={10}>
-            <Text style={styles.switchRoleLink}>تغییر نقش این گوشی</Text>
+          <Pressable style={styles.languageBtn} onPress={() => router.push('/lang' as never)}>
+            <GraduationCap size={20} color={Colors.accent[300]} strokeWidth={2.2} />
+            <View style={styles.languageTextWrap}>
+              <Text style={styles.languageTitle}>آموزش زبان انگلیسی</Text>
+              <Text style={styles.languageDesc}>۱۲ درس، تلفظ صوتی، فلش‌کارت و آزمون</Text>
+            </View>
           </Pressable>
         </View>
       </ScrollView>
@@ -324,8 +320,12 @@ export default function AgentHomeScreen() {
           <Text style={styles.disconnectText}>قطع اتصال از گوشی اول</Text>
         </Pressable>
 
-        <Pressable onPress={switchRole} hitSlop={10} style={{ marginTop: Spacing.lg, alignSelf: 'center' }}>
-          <Text style={styles.switchRoleLink}>تغییر نقش این گوشی</Text>
+        <Pressable style={styles.languageBtn} onPress={() => router.push('/lang' as never)}>
+          <GraduationCap size={20} color={Colors.accent[300]} strokeWidth={2.2} />
+          <View style={styles.languageTextWrap}>
+            <Text style={styles.languageTitle}>آموزش زبان انگلیسی</Text>
+            <Text style={styles.languageDesc}>ادامه درس‌ها و آزمون‌های شما</Text>
+          </View>
         </Pressable>
       </View>
     </ScrollView>
@@ -495,12 +495,31 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xl,
     marginBottom: Spacing.md,
   },
-  switchRoleLink: {
+  languageBtn: {
+    marginTop: Spacing.lg,
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.accent[500] + '55',
+    backgroundColor: Colors.accent[500] + '10',
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  languageTextWrap: { flex: 1 },
+  languageTitle: {
+    fontFamily: Typography.fontFamily,
+    fontSize: Typography.sizes.md,
+    fontWeight: Typography.weights.bold,
+    color: Colors.neutral[0],
+    textAlign: 'right',
+  },
+  languageDesc: {
     fontFamily: Typography.fontFamily,
     fontSize: Typography.sizes.xs,
-    color: Colors.neutral[500],
-    textAlign: 'center',
-    textDecorationLine: 'underline',
+    color: Colors.neutral[400],
+    textAlign: 'right',
+    marginTop: 3,
   },
 
   liveCard: {
