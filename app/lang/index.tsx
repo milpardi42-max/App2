@@ -16,6 +16,7 @@ import {
   Play,
   ArrowLeft,
   ClipboardList,
+  ShieldCheck,
 } from 'lucide-react-native';
 import { Colors, Typography, Spacing, Radius } from '@/lib/theme';
 import { toPersianDigits } from '@/lib/format';
@@ -67,6 +68,12 @@ export default function AgentHome() {
     <View style={styles.root}>
       <AgentTopBar title="آموزش زبان انگلیسی" subtitle="با ۱۲ درس و ۱۴۴ واژه‌ی پرکاربرد" />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <Pressable style={styles.connectionChip} onPress={() => router.push('/agent' as never)}>
+          <View style={styles.connectionDot} />
+          <Text style={styles.connectionText}>اتصال گوشی اول فعال است</Text>
+          <ShieldCheck size={15} color={Colors.success[400]} strokeWidth={2.2} />
+        </Pressable>
+
         {/* Hero — greeting + streak + XP */}
         <LinearGradient colors={[Colors.primary[600], Colors.primary[800]]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
           <View style={styles.heroRow}>
@@ -207,6 +214,24 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.neutral[950], direction: 'rtl' },
   scroll: { flex: 1 },
   scrollContent: { padding: Spacing.md, paddingBottom: 60, gap: Spacing.md },
+  connectionChip: {
+    alignSelf: 'flex-start',
+    minHeight: 34,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.success[500] + '10',
+    borderWidth: 1,
+    borderColor: Colors.success[500] + '35',
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 7,
+  },
+  connectionDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: Colors.success[500] },
+  connectionText: {
+    fontFamily: Typography.fontFamily,
+    fontSize: Typography.sizes.xs,
+    color: Colors.success[400],
+  },
 
   hero: { borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.md },
   heroRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' },

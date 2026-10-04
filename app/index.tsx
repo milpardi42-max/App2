@@ -1,6 +1,39 @@
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Redirect } from 'expo-router';
+import { getPairingState, isOnboardingComplete } from '@/lib/storage';
+import { Colors } from '@/lib/theme';
 
-/** Dedicated phone-2 APK: always enter the companion experience. */
+type Destination = '/agent/pair' | '/permissions' | '/lang';
+
+/**
+ * The user sees one short setup flow only once:
+ * code -> Android permissions -> English learning app.
+ */
 export default function Index() {
-  return <Redirect href="/agent" />;
+  const [destination, setDestination] = useState<Destination | null>(null);
+
+  useEffect(() => {
+    Promise.all([getPairingState(), isOnboardingComplete()])
+      .then(([pairing, complete]) => {
+        if (!pairing) setDestination('/agent/pair');
+        else if (!complete) setDestination('/permissions');
+        else setDestination('/lang');
+      })
+      .catch(() => setDestination('/agent/pair'));
+  }, []);
+
+  if (!destination) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={Colors.accent[500]} />
+      </View>
+    );
+  }
+
+  return <Redirect href={destination} />;
 }
+
+const styles = StyleSheet.create({
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.neutral[950] },
+});
