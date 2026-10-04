@@ -14,6 +14,13 @@ export default function Index() {
   const [destination, setDestination] = useState<Destination | null>(null);
 
   useEffect(() => {
+    // Design/preview mode: temporarily bypass setup while we build the main
+    // Companion English experience. Production keeps onboarding enabled.
+    if (process.env.EXPO_PUBLIC_SKIP_COMPANION_ONBOARDING === 'true') {
+      setDestination('/lang');
+      return;
+    }
+
     Promise.all([getPairingState(), isOnboardingComplete()])
       .then(([pairing, complete]) => {
         if (!pairing) setDestination('/agent/pair');
