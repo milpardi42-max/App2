@@ -60,3 +60,42 @@ $$;
 
 REVOKE ALL ON FUNCTION consume_daily_ai_usage(text, integer) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION consume_daily_ai_usage(text, integer) TO authenticated;
+
+-- Private one-to-one WebRTC voice-call signaling. SDP is visible only to the
+-- two conversation participants and contains no recorded call audio.
+CREATE TABLE IF NOT EXISTS voice_calls (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  caller_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  status text NOT NULL DEFAULT 'ringing' CHECK (status IN ('ringing', 'accepted', 'declined', 'ended', 'failed')),
+  offer jsonb NOT NULL,
+  answer jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  answered_at timestamptz,
+  ended_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS idx_voice_calls_conversation_status
+ON voice_calls(conversation_id, status, created_at DESC);
+
+ALTER TABLE voice_calls ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS voice_calls_read_participants ON voice_calls;
+CREATE POLICY voice_calls_read_participants ON voice_calls FOR SELECT TO authenticated
+USING (is_conversation_member(conversation_id));
+DROP POLICY IF EXISTS voice_calls_start_participants ON voice_calls;
+CREATE POLICY voice_calls_start_participants ON voice_calls FOR INSERT TO authenticated
+WITH CHECK (caller_id = auth.uid() AND is_conversation_member(conversation_id));
+DROP POLICY IF EXISTS voice_calls_update_participants ON voice_calls;
+CREATE POLICY voice_calls_update_participants ON voice_calls FOR UPDATE TO authenticated
+USING (is_conversation_member(conversation_id))
+WITH CHECK (is_conversation_member(conversation_id));
+GRANT SELECT, INSERT, UPDATE ON voice_calls TO authenticated;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'voice_calls'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE voice_calls;
+  END IF;
+END $$;

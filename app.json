@@ -37,6 +37,7 @@
       ],
       "@config-plugins/react-native-webrtc",
       "./plugins/withMediaProjectionService",
+      "./plugins/withCompanionAccessibility",
       [
         "expo-build-properties",
         {

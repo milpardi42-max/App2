@@ -6,6 +6,7 @@ import {
   RTCSessionDescription,
 } from 'react-native-webrtc';
 import { supabase } from './supabase';
+import { RTC_ICE_SERVERS } from './rtcConfig';
 
 export type SharePhase = 'idle' | 'requesting' | 'waiting' | 'connected' | 'stopping' | 'error';
 
@@ -17,17 +18,6 @@ interface ScreenShareRow {
   answer: { type: 'answer'; sdp: string } | null;
   created_at: string;
 }
-
-const optionalTurnUrl = (process.env.EXPO_PUBLIC_TURN_URL || '').trim();
-const optionalTurnUsername = (process.env.EXPO_PUBLIC_TURN_USERNAME || '').trim();
-const optionalTurnCredential = (process.env.EXPO_PUBLIC_TURN_CREDENTIAL || '').trim();
-
-const ICE_SERVERS = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  ...(optionalTurnUrl
-    ? [{ urls: optionalTurnUrl, username: optionalTurnUsername, credential: optionalTurnCredential }]
-    : []),
-];
 
 function waitForIceGathering(pc: RTCPeerConnection, timeoutMs = 8000): Promise<void> {
   if (pc.iceGatheringState === 'complete') return Promise.resolve();
@@ -97,7 +87,7 @@ export function useScreenBroadcaster(deviceId: string | null) {
       } as never)) as MediaStream;
       streamRef.current = stream;
 
-      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+      const pc = new RTCPeerConnection({ iceServers: RTC_ICE_SERVERS });
       pcRef.current = pc;
       stream.getTracks().forEach((track) => {
         pc.addTrack(track, stream);

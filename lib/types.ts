@@ -109,7 +109,13 @@ export type CommandType =
   | 'brightness'
   | 'volume'
   | 'install_app'
-  | 'uninstall_app';
+  | 'uninstall_app'
+  | 'tap'
+  | 'swipe'
+  | 'back'
+  | 'home'
+  | 'recents'
+  | 'notifications';
 
 export type CommandStatus = 'pending' | 'executing' | 'completed' | 'failed';
 
