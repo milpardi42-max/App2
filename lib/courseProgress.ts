@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import { getEssential504WordsForLesson } from './essential504';
 
 const KEY = 'sentence_course_progress_v1';
 
@@ -7,6 +8,8 @@ export interface CourseProgress {
   completedLessonIds: string[];
   currentLessonId: string;
   reviewSentenceIds: string[];
+  /** Internal coverage only; this does not add a new section to the lesson UI. */
+  learnedEssential504Words: string[];
   dailyGoalMinutes: number;
   todayMinutes: number;
   updatedAt: string;
@@ -16,6 +19,7 @@ const initial: CourseProgress = {
   completedLessonIds: [],
   currentLessonId: 'foundation-introducing-yourself',
   reviewSentenceIds: [],
+  learnedEssential504Words: [],
   dailyGoalMinutes: 10,
   todayMinutes: 0,
   updatedAt: new Date(0).toISOString(),
@@ -48,6 +52,12 @@ export async function completeSentenceLesson(lessonId: string, nextLessonId?: st
   const next: CourseProgress = {
     ...current,
     completedLessonIds: Array.from(new Set([...current.completedLessonIds, lessonId])),
+    learnedEssential504Words: Array.from(
+      new Set([
+        ...current.learnedEssential504Words,
+        ...getEssential504WordsForLesson(lessonId),
+      ]),
+    ),
     currentLessonId: nextLessonId ?? current.currentLessonId,
     todayMinutes: Math.min(current.dailyGoalMinutes, current.todayMinutes + 8),
     updatedAt: new Date().toISOString(),
