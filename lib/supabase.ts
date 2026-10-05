@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 const FALLBACK_URL = 'https://placeholder.supabase.co';
 const FALLBACK_KEY = 'placeholder-anon-key';
@@ -38,11 +39,27 @@ if (!supabaseAnonKey) {
   supabaseAnonKey = FALLBACK_KEY;
 }
 
+const serverMemoryStorage = new Map<string, string>();
+const webSafeStorage = {
+  async getItem(key: string) {
+    if (typeof window !== 'undefined') return window.localStorage.getItem(key);
+    return serverMemoryStorage.get(key) ?? null;
+  },
+  async setItem(key: string, value: string) {
+    if (typeof window !== 'undefined') window.localStorage.setItem(key, value);
+    else serverMemoryStorage.set(key, value);
+  },
+  async removeItem(key: string) {
+    if (typeof window !== 'undefined') window.localStorage.removeItem(key);
+    else serverMemoryStorage.delete(key);
+  },
+};
+
 const authOptions = {
   persistSession: true,
   autoRefreshToken: true,
   detectSessionInUrl: false,
-  storage: AsyncStorage,
+  storage: Platform.OS === 'web' ? webSafeStorage : AsyncStorage,
 };
 
 function createSafeClient() {
