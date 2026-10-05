@@ -2,9 +2,17 @@ import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
-import { ArrowRight, Check, ChevronLeft, Headphones, MessageCircle, Mic2, RotateCcw, Sparkles, Volume2 } from 'lucide-react-native';
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
+import { ArrowRight, Check, ChevronLeft, Headphones, MessageCircle, Mic2, RotateCcw, Sparkles, Square, Volume2 } from 'lucide-react-native';
 import { getSentenceLesson, SENTENCE_LESSONS } from '@/lib/courseContent';
 import { completeSentenceLesson } from '@/lib/courseProgress';
+import { evaluateSpokenSentence, type SpeechEvaluation } from '@/lib/speechPractice';
 import { Colors, Radius, Spacing, Typography } from '@/lib/theme';
 import { toPersianDigits } from '@/lib/format';
 
@@ -17,6 +25,11 @@ export default function SentenceLessonScreen() {
   const [stage, setStage] = useState(0);
   const [sentenceIndex, setSentenceIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(recorder, 250);
+  const [evaluatingSpeech, setEvaluatingSpeech] = useState(false);
+  const [speechResult, setSpeechResult] = useState<SpeechEvaluation | null>(null);
+  const [speechError, setSpeechError] = useState<string | null>(null);
   const current = lesson.sentences[sentenceIndex];
   const vocabulary = useMemo(() => {
     const seen = new Set<string>();
@@ -30,6 +43,48 @@ export default function SentenceLessonScreen() {
   const speak = (text: string, rate = 0.78) => {
     Speech.stop();
     Speech.speak(text, { language: 'en-US', rate });
+  };
+
+  const startSpeechPractice = async () => {
+    try {
+      setSpeechError(null);
+      setSpeechResult(null);
+      Speech.stop();
+      const permission = await requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        setSpeechError('برای تمرین گفتاری، اجازه استفاده از میکروفن را فعال کنید.');
+        return;
+      }
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+    } catch {
+      setSpeechError('ضبط صدا شروع نشد. دوباره تلاش کنید.');
+    }
+  };
+
+  const stopAndEvaluateSpeech = async () => {
+    if (!recorderState.isRecording || evaluatingSpeech) return;
+    try {
+      await recorder.stop();
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      if (!recorder.uri) throw new Error('Recording URI is missing');
+      setEvaluatingSpeech(true);
+      setSpeechError(null);
+      setSpeechResult(await evaluateSpokenSentence(recorder.uri, current.en));
+    } catch (cause) {
+      setSpeechError(cause instanceof Error && cause.message !== 'Recording URI is missing' ? cause.message : 'صدای شما بررسی نشد. دوباره تلاش کنید.');
+    } finally {
+      setEvaluatingSpeech(false);
+    }
+  };
+
+  const selectListeningSentence = (index: number) => {
+    if (recorderState.isRecording || evaluatingSpeech) return;
+    setSentenceIndex(index);
+    setSpeechResult(null);
+    setSpeechError(null);
+    speak(lesson.sentences[index].en, 0.72);
   };
 
   const next = async () => {
@@ -104,16 +159,46 @@ export default function SentenceLessonScreen() {
             <Text style={styles.stageDesc}>هر جمله را بشنوید، یک مکث کوتاه کنید و دقیقاً با همان آهنگ تکرار کنید.</Text>
             <View style={styles.listenList}>
               {lesson.sentences.map((sentence, index) => (
-                <Pressable key={sentence.id} style={styles.listenRow} onPress={() => speak(sentence.en, 0.72)}>
+                <Pressable
+                  key={sentence.id}
+                  disabled={recorderState.isRecording || evaluatingSpeech}
+                  style={[styles.listenRow, index === sentenceIndex && styles.listenRowActive]}
+                  onPress={() => selectListeningSentence(index)}
+                >
                   <View style={styles.listenNumber}><Text style={styles.listenNumberText}>{toPersianDigits(index + 1)}</Text></View>
                   <Text style={styles.listenEnglish}>{sentence.en}</Text>
                   <Volume2 size={19} color={Colors.primary[400]} />
                 </Pressable>
               ))}
             </View>
+
+            <View style={styles.speechPractice}>
+              <Text style={styles.speechTitle}>حالا شما بگویید</Text>
+              <Text style={styles.speechSentence}>{current.en}</Text>
+              <Text style={styles.speechHint}>{recorderState.isRecording ? `در حال ضبط · ${toPersianDigits(Math.max(1, Math.round(recorderState.durationMillis / 1000)))} ثانیه` : evaluatingSpeech ? 'در حال بررسی قابل‌فهم‌بودن جمله…' : 'دکمه را بزنید، جمله را بگویید و سپس ضبط را متوقف کنید.'}</Text>
+              <Pressable
+                disabled={evaluatingSpeech}
+                style={[styles.recordButton, recorderState.isRecording && styles.recordButtonActive, evaluatingSpeech && styles.recordButtonDisabled]}
+                onPress={() => recorderState.isRecording ? void stopAndEvaluateSpeech() : void startSpeechPractice()}
+              >
+                {evaluatingSpeech ? <Text style={styles.recordButtonText}>در حال بررسی…</Text> : recorderState.isRecording ? <><Square size={17} color={Colors.onColor} fill={Colors.onColor} /><Text style={styles.recordButtonText}>توقف و بررسی</Text></> : <><Mic2 size={19} color={Colors.onColor} /><Text style={styles.recordButtonText}>شروع ضبط</Text></>}
+              </Pressable>
+
+              {speechResult ? (
+                <View style={styles.speechResult}>
+                  <View style={styles.scoreRow}><Text style={styles.scoreLabel}>وضوح جمله</Text><Text style={styles.scoreValue}>{toPersianDigits(speechResult.score)}٪</Text></View>
+                  <Text style={styles.recognizedLabel}>آنچه شنیده شد:</Text>
+                  <Text style={styles.recognizedText}>{speechResult.recognized || 'صدای قابل‌تشخیصی دریافت نشد.'}</Text>
+                  <Text style={styles.feedbackText}>{speechResult.feedbackFa}</Text>
+                  {speechResult.missingWords.length ? <Text style={styles.missingWords}>دوباره تمرین کنید: {speechResult.missingWords.join(' · ')}</Text> : null}
+                </View>
+              ) : null}
+              {speechError ? <Text style={styles.speechError}>{speechError}</Text> : null}
+            </View>
+
             <View style={styles.shadowTip}>
               <Mic2 size={18} color={Colors.warning[400]} />
-              <Text style={styles.shadowText}>هدف کامل‌بودن نیست؛ فقط دهان و گوش خود را به جمله عادت دهید.</Text>
+              <Text style={styles.shadowText}>این امتیاز میزان قابل‌فهم‌بودن جمله را می‌سنجد؛ هدف لهجه بی‌نقص نیست.</Text>
             </View>
           </View>
         )}
@@ -227,9 +312,27 @@ const styles = StyleSheet.create({
   hint: { fontFamily: Typography.fontFamily, fontSize: Typography.sizes.xs, color: Colors.neutral[500], textAlign: 'center', lineHeight: 19, marginTop: Spacing.md },
   listenList: { width: '100%', gap: Spacing.sm, marginTop: Spacing.xl },
   listenRow: { minHeight: 62, borderRadius: Radius.lg, backgroundColor: Colors.neutral[850], borderWidth: 1, borderColor: Colors.neutral[800], paddingHorizontal: Spacing.md, flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.sm },
+  listenRowActive: { borderColor: Colors.primary[500] + '70', backgroundColor: Colors.primary[500] + '0C' },
   listenNumber: { width: 30, height: 30, borderRadius: 15, backgroundColor: Colors.primary[500] + '18', alignItems: 'center', justifyContent: 'center' },
   listenNumberText: { fontFamily: Typography.fontFamily, fontSize: Typography.sizes.xs, color: Colors.primary[300] },
   listenEnglish: { flex: 1, fontSize: 15, color: Colors.neutral[100], textAlign: 'left' },
+  speechPractice: { width: '100%', borderRadius: Radius.xl, backgroundColor: Colors.neutral[850], borderWidth: 1, borderColor: Colors.accent[500] + '35', padding: Spacing.lg, alignItems: 'center', marginTop: Spacing.lg },
+  speechTitle: { fontFamily: Typography.fontFamily, fontSize: Typography.sizes.md, fontWeight: Typography.weights.bold, color: Colors.neutral[100] },
+  speechSentence: { fontSize: 19, lineHeight: 28, fontWeight: '700', color: Colors.neutral[50], textAlign: 'center', marginTop: Spacing.sm },
+  speechHint: { fontFamily: Typography.fontFamily, fontSize: Typography.sizes.xs, color: Colors.neutral[500], textAlign: 'center', lineHeight: 19, marginTop: 6 },
+  recordButton: { minHeight: 48, minWidth: 155, borderRadius: Radius.full, paddingHorizontal: Spacing.lg, backgroundColor: Colors.accent[500], flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: Spacing.md },
+  recordButtonActive: { backgroundColor: Colors.error[500] },
+  recordButtonDisabled: { opacity: .55 },
+  recordButtonText: { fontFamily: Typography.fontFamily, fontSize: Typography.sizes.sm, fontWeight: Typography.weights.bold, color: Colors.onColor },
+  speechResult: { width: '100%', borderRadius: Radius.lg, backgroundColor: Colors.success[500] + '0A', borderWidth: 1, borderColor: Colors.success[500] + '25', padding: Spacing.md, marginTop: Spacing.md },
+  scoreRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' },
+  scoreLabel: { fontFamily: Typography.fontFamily, fontSize: Typography.sizes.xs, color: Colors.neutral[500] },
+  scoreValue: { fontFamily: Typography.fontFamily, fontSize: Typography.sizes.lg, fontWeight: Typography.weights.bold, color: Colors.success[400] },
+  recognizedLabel: { fontFamily: Typography.fontFamily, fontSize: 10, color: Colors.neutral[500], textAlign: 'right', marginTop: Spacing.sm },
+  recognizedText: { fontSize: 15, color: Colors.neutral[100], textAlign: 'left', marginTop: 3 },
+  feedbackText: { fontFamily: Typography.fontFamily, fontSize: Typography.sizes.xs, color: Colors.success[300], textAlign: 'right', lineHeight: 19, marginTop: Spacing.sm },
+  missingWords: { fontSize: 12, color: Colors.warning[300], textAlign: 'left', marginTop: Spacing.sm },
+  speechError: { fontFamily: Typography.fontFamily, fontSize: Typography.sizes.xs, color: Colors.error[300], textAlign: 'center', lineHeight: 19, marginTop: Spacing.sm },
   shadowTip: { width: '100%', marginTop: Spacing.md, borderRadius: Radius.lg, backgroundColor: Colors.warning[500] + '0D', padding: Spacing.md, flexDirection: 'row-reverse', alignItems: 'center', gap: 8 },
   shadowText: { flex: 1, fontFamily: Typography.fontFamily, fontSize: Typography.sizes.xs, color: Colors.neutral[400], textAlign: 'right', lineHeight: 19 },
   practiceCard: { width: '100%', minHeight: 230, borderRadius: Radius.xl, backgroundColor: Colors.neutral[850], borderWidth: 1, borderColor: Colors.neutral[800], padding: Spacing.xl, marginTop: Spacing.xl, alignItems: 'center', justifyContent: 'center' },

@@ -16,7 +16,8 @@
       "permissions": [
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -28,6 +29,12 @@
       "expo-router",
       "expo-font",
       "expo-web-browser",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "برای تمرین تلفظ جمله‌ها، اجازه استفاده از میکروفن را بدهید."
+        }
+      ],
       "@config-plugins/react-native-webrtc",
       "./plugins/withMediaProjectionService",
       [

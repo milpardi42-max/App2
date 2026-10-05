@@ -15,8 +15,10 @@
 
 ```bash
 supabase functions deploy emma-chat
+supabase functions deploy speech-evaluate
 supabase secrets set OPENAI_API_KEY=YOUR_KEY
 supabase secrets set OPENAI_MODEL=gpt-4o-mini
+supabase secrets set OPENAI_TRANSCRIBE_MODEL=whisper-1
 ```
 
 کلید هوش مصنوعی را هرگز داخل `.env` اپ یا APK قرار ندهید. فایل تابع در `supabase/functions/emma-chat/index.ts` قرار دارد.

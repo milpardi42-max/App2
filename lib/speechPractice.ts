@@ -1,0 +1,39 @@
+import { Platform } from 'react-native';
+import { ensureChatIdentity } from './conversations';
+import { supabase } from './supabase';
+
+export interface SpeechEvaluation {
+  recognized: string;
+  score: number;
+  missingWords: string[];
+  feedbackFa: string;
+}
+
+export async function evaluateSpokenSentence(audioUri: string, expected: string): Promise<SpeechEvaluation> {
+  await ensureChatIdentity();
+  const form = new FormData();
+  form.append('expected', expected);
+
+  if (Platform.OS === 'web') {
+    const audioBlob = await fetch(audioUri).then((response) => response.blob());
+    form.append('audio', audioBlob, 'speech.webm');
+  } else {
+    form.append('audio', {
+      uri: audioUri,
+      name: 'speech.m4a',
+      type: 'audio/m4a',
+    } as unknown as Blob);
+  }
+
+  const { data, error } = await supabase.functions.invoke('speech-evaluate', { body: form });
+  if (error) throw new Error('بررسی صدا انجام نشد. اتصال اینترنت را بررسی کنید.');
+  if (data?.error) throw new Error(String(data.error));
+  if (typeof data?.score !== 'number') throw new Error('نتیجه معتبری برای صدا دریافت نشد.');
+
+  return {
+    recognized: String(data.recognized || ''),
+    score: Math.max(0, Math.min(100, Number(data.score))),
+    missingWords: Array.isArray(data.missingWords) ? data.missingWords.map(String) : [],
+    feedbackFa: String(data.feedbackFa || ''),
+  };
+}
