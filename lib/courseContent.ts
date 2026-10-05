@@ -1,4 +1,5 @@
 import { EXPANDED_SENTENCE_LESSONS } from './courseContentExpansion';
+import { ADVANCED_SENTENCE_LESSONS } from './courseContentExpansion2';
 
 export type CourseLevelId = 0 | 1 | 2 | 3 | 4;
 
@@ -274,7 +275,10 @@ const CORE_SENTENCE_LESSONS: SentenceLesson[] = [
   },
 ];
 
-export const SENTENCE_LESSONS: SentenceLesson[] = [...CORE_SENTENCE_LESSONS, ...EXPANDED_SENTENCE_LESSONS]
-  .sort((a, b) => a.order - b.order);
+export const SENTENCE_LESSONS: SentenceLesson[] = [
+  ...CORE_SENTENCE_LESSONS,
+  ...EXPANDED_SENTENCE_LESSONS,
+  ...ADVANCED_SENTENCE_LESSONS,
+].sort((a, b) => a.order - b.order);
 
 export const getSentenceLesson = (id: string) => SENTENCE_LESSONS.find((lesson) => lesson.id === id);
