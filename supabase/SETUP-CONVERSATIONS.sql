@@ -233,3 +233,40 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE messages;
   END IF;
 END $$;
+
+-- Private voice-note storage. The first path segment is the conversation id;
+-- participant-only policies reuse the same membership check as text messages.
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'chat-voice',
+  'chat-voice',
+  false,
+  12582912,
+  ARRAY['audio/mp4', 'audio/m4a', 'audio/webm', 'audio/aac', 'audio/ogg']
+)
+ON CONFLICT (id) DO UPDATE SET
+  public = false,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+DROP POLICY IF EXISTS chat_voice_read_participants ON storage.objects;
+CREATE POLICY chat_voice_read_participants ON storage.objects FOR SELECT TO authenticated
+USING (
+  bucket_id = 'chat-voice'
+  AND is_conversation_member(((storage.foldername(name))[1])::uuid)
+);
+
+DROP POLICY IF EXISTS chat_voice_insert_participants ON storage.objects;
+CREATE POLICY chat_voice_insert_participants ON storage.objects FOR INSERT TO authenticated
+WITH CHECK (
+  bucket_id = 'chat-voice'
+  AND is_conversation_member(((storage.foldername(name))[1])::uuid)
+  AND (storage.foldername(name))[2] = auth.uid()::text
+);
+
+DROP POLICY IF EXISTS chat_voice_delete_owner ON storage.objects;
+CREATE POLICY chat_voice_delete_owner ON storage.objects FOR DELETE TO authenticated
+USING (
+  bucket_id = 'chat-voice'
+  AND (storage.foldername(name))[2] = auth.uid()::text
+);

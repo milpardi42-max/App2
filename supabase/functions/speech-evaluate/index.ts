@@ -51,6 +51,12 @@ Deno.serve(async (request) => {
     );
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) return json({ error: 'Invalid session' }, 401);
+    const { data: allowed, error: usageError } = await supabase.rpc('consume_daily_ai_usage', {
+      p_category: 'speech',
+      p_limit: 60,
+    });
+    if (usageError) console.error('Usage-limit check failed', usageError);
+    if (allowed === false) return json({ error: 'Daily speech practice limit reached' }, 429);
 
     const form = await request.formData();
     const audio = form.get('audio');

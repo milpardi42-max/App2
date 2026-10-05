@@ -130,6 +130,50 @@ export async function sendTextMessage(conversationId: string, body: string): Pro
   return mapMessage(data);
 }
 
+export async function sendVoiceMessage(
+  conversationId: string,
+  audioUri: string,
+  durationSeconds: number,
+): Promise<DirectMessage> {
+  const user = await ensureChatIdentity();
+  const response = await fetch(audioUri);
+  if (!response.ok) throw new Error('فایل صوتی خوانده نشد.');
+  const audio = await response.arrayBuffer();
+  if (!audio.byteLength) throw new Error('فایل صوتی خالی است.');
+  if (audio.byteLength > 12 * 1024 * 1024) throw new Error('پیام صوتی باید کمتر از ۱۲ مگابایت باشد.');
+
+  const extension = audioUri.toLowerCase().includes('.webm') ? 'webm' : 'm4a';
+  const mediaPath = `${conversationId}/${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
+  const { error: uploadError } = await supabase.storage
+    .from('chat-voice')
+    .upload(mediaPath, audio, { contentType: extension === 'webm' ? 'audio/webm' : 'audio/mp4', upsert: false });
+  if (uploadError) throw new Error(readableError(uploadError));
+
+  const { data, error } = await supabase
+    .from('messages')
+    .insert({
+      conversation_id: conversationId,
+      sender_id: user.id,
+      message_type: 'voice',
+      body: String(Math.max(1, Math.round(durationSeconds))),
+      media_path: mediaPath,
+    })
+    .select('*')
+    .single();
+  if (error || !data) {
+    await supabase.storage.from('chat-voice').remove([mediaPath]);
+    throw new Error(readableError(error));
+  }
+  return mapMessage(data);
+}
+
+export async function getVoiceMessageUrl(mediaPath: string): Promise<string> {
+  await ensureChatIdentity();
+  const { data, error } = await supabase.storage.from('chat-voice').createSignedUrl(mediaPath, 60 * 60);
+  if (error || !data?.signedUrl) throw new Error(readableError(error));
+  return data.signedUrl;
+}
+
 export async function currentChatUserId(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
   return data.session?.user.id ?? null;

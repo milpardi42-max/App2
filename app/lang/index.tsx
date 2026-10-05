@@ -91,8 +91,8 @@ export default function LearningHome() {
             <Flame size={23} color={Colors.warning[400]} strokeWidth={2.3} />
           </View>
           <View style={styles.dailyText}>
-            <Text style={styles.dailyTitle}>هدف کوتاه و قابل انجام</Text>
-            <Text style={styles.dailyDesc}>یک درس جمله‌محور و یک مرور سریع</Text>
+            <Text style={styles.dailyTitle}>{progress?.currentStreak ? `زنجیره ${toPersianDigits(progress.currentStreak)} روزه` : 'هدف کوتاه و قابل انجام'}</Text>
+            <Text style={styles.dailyDesc}>{progress?.currentStreak ? `بهترین رکورد: ${toPersianDigits(progress.longestStreak)} روز` : 'یک درس جمله‌محور و یک مرور سریع'}</Text>
             <View style={styles.progressTrack}>
               <View style={[styles.progressFill, { width: `${Math.max(5, dailyPct * 100)}%` }]} />
             </View>

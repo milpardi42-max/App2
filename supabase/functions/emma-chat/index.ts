@@ -25,6 +25,12 @@ Deno.serve(async (request) => {
     const token = authHeader.replace(/^Bearer\s+/i, '');
     const { data: authData, error: authError } = await supabase.auth.getUser(token);
     if (authError || !authData.user) return json({ error: 'Invalid session' }, 401);
+    const { data: allowed, error: usageError } = await supabase.rpc('consume_daily_ai_usage', {
+      p_category: 'emma',
+      p_limit: 100,
+    });
+    if (usageError) console.error('Usage-limit check failed', usageError);
+    if (allowed === false) return json({ error: 'Daily Emma practice limit reached' }, 429);
 
     const apiKey = Deno.env.get('OPENAI_API_KEY');
     if (!apiKey) return json({ error: 'OPENAI_API_KEY is not configured' }, 503);

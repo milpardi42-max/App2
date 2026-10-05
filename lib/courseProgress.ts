@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { SENTENCE_LESSONS } from './courseContent';
 import { getEssential504WordsForLesson } from './essential504';
+import { supabase } from './supabase';
 
 const KEY = 'sentence_course_progress_v1';
 const MINUTE = 60 * 1000;
@@ -32,6 +33,10 @@ export interface CourseProgress {
   dailyGoalMinutes: number;
   todayMinutes: number;
   activityDate: string;
+  currentStreak: number;
+  longestStreak: number;
+  lastActiveDate: string | null;
+  totalMinutes: number;
   updatedAt: string;
 }
 
@@ -48,6 +53,10 @@ function initialProgress(): CourseProgress {
     dailyGoalMinutes: 10,
     todayMinutes: 0,
     activityDate: localDateKey(),
+    currentStreak: 0,
+    longestStreak: 0,
+    lastActiveDate: null,
+    totalMinutes: 0,
     updatedAt: new Date(0).toISOString(),
   };
 }
@@ -93,6 +102,10 @@ function normalizeProgress(value: Partial<CourseProgress>): CourseProgress {
     learnedEssential504Words: Array.isArray(value.learnedEssential504Words) ? value.learnedEssential504Words : [],
     activityDate: localDateKey(),
     todayMinutes: isNewDay ? 0 : (value.todayMinutes ?? 0),
+    currentStreak: Math.max(0, Number(value.currentStreak) || 0),
+    longestStreak: Math.max(0, Number(value.longestStreak) || 0),
+    lastActiveDate: typeof value.lastActiveDate === 'string' ? value.lastActiveDate : null,
+    totalMinutes: Math.max(0, Number(value.totalMinutes) || 0),
   };
 }
 
@@ -111,19 +124,88 @@ async function writeRaw(value: string): Promise<void> {
   await AsyncStorage.setItem(KEY, value);
 }
 
+function previousLocalDateKey(date = new Date()): string {
+  const previous = new Date(date);
+  previous.setDate(previous.getDate() - 1);
+  return localDateKey(previous);
+}
+
+function addDailyActivity(progress: CourseProgress, minutes: number, now = new Date()): CourseProgress {
+  const today = localDateKey(now);
+  const alreadyActiveToday = progress.lastActiveDate === today;
+  const nextStreak = alreadyActiveToday
+    ? progress.currentStreak
+    : progress.lastActiveDate === previousLocalDateKey(now)
+      ? progress.currentStreak + 1
+      : 1;
+  return {
+    ...progress,
+    activityDate: today,
+    todayMinutes: Math.min(progress.dailyGoalMinutes, progress.todayMinutes + minutes),
+    totalMinutes: progress.totalMinutes + minutes,
+    currentStreak: nextStreak,
+    longestStreak: Math.max(progress.longestStreak, nextStreak),
+    lastActiveDate: today,
+    updatedAt: now.toISOString(),
+  };
+}
+
+async function progressUserId(): Promise<string | null> {
+  const { data: session } = await supabase.auth.getSession();
+  if (session.session?.user.id) return session.session.user.id;
+  const { data, error } = await supabase.auth.signInAnonymously();
+  if (error) return null;
+  return data.user?.id ?? null;
+}
+
+async function uploadProgress(progress: CourseProgress): Promise<void> {
+  try {
+    const userId = await progressUserId();
+    if (!userId) return;
+    await supabase.from('learning_progress').upsert({
+      user_id: userId,
+      progress,
+      updated_at: progress.updatedAt,
+    }, { onConflict: 'user_id' });
+  } catch {
+    // Local progress remains authoritative while offline and is retried later.
+  }
+}
+
 async function saveProgress(progress: CourseProgress): Promise<CourseProgress> {
   await writeRaw(JSON.stringify(progress));
+  await uploadProgress(progress);
   return progress;
 }
 
 export async function getCourseProgress(): Promise<CourseProgress> {
   try {
     const raw = await readRaw();
-    const progress = normalizeProgress(raw ? JSON.parse(raw) as Partial<CourseProgress> : {});
-    if (raw) await writeRaw(JSON.stringify(progress));
+    let progress = normalizeProgress(raw ? JSON.parse(raw) as Partial<CourseProgress> : {});
+    const userId = await progressUserId();
+    if (userId) {
+      const { data } = await supabase
+        .from('learning_progress')
+        .select('progress,updated_at')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (data?.progress) {
+        const remote = normalizeProgress(data.progress as Partial<CourseProgress>);
+        if (new Date(data.updated_at).getTime() > new Date(progress.updatedAt).getTime()) progress = remote;
+        else await uploadProgress(progress);
+      } else {
+        await uploadProgress(progress);
+      }
+    }
+    await writeRaw(JSON.stringify(progress));
     return progress;
   } catch {
-    return initialProgress();
+    try {
+      const raw = await readRaw();
+      return normalizeProgress(raw ? JSON.parse(raw) as Partial<CourseProgress> : {});
+    } catch {
+      return initialProgress();
+    }
   }
 }
 
@@ -133,7 +215,7 @@ export async function completeSentenceLesson(lessonId: string, nextLessonId?: st
   cardsForLesson(lessonId).forEach((card) => {
     if (!cardMap.has(card.id)) cardMap.set(card.id, card);
   });
-  const next: CourseProgress = {
+  const next = addDailyActivity({
     ...current,
     completedLessonIds: Array.from(new Set([...current.completedLessonIds, lessonId])),
     reviewCards: Array.from(cardMap.values()),
@@ -144,10 +226,7 @@ export async function completeSentenceLesson(lessonId: string, nextLessonId?: st
       ]),
     ),
     currentLessonId: nextLessonId ?? current.currentLessonId,
-    todayMinutes: Math.min(current.dailyGoalMinutes, current.todayMinutes + 8),
-    activityDate: localDateKey(),
-    updatedAt: new Date().toISOString(),
-  };
+  }, 8);
   return saveProgress(next);
 }
 
@@ -204,12 +283,10 @@ export async function rateReviewCard(
     lastReviewedAt: now.toISOString(),
     dueAt: new Date(now.getTime() + dueInMs).toISOString(),
   };
-  const next = {
+  const next = addDailyActivity({
     ...progress,
     reviewCards: progress.reviewCards.map((item) => item.id === cardId ? updated : item),
-    todayMinutes: Math.min(progress.dailyGoalMinutes, progress.todayMinutes + 1),
-    updatedAt: now.toISOString(),
-  };
+  }, 1, now);
   await saveProgress(next);
   return updated;
 }
