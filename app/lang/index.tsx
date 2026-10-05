@@ -36,6 +36,7 @@ export default function LearningHome() {
   const currentLesson =
     SENTENCE_LESSONS.find((lesson) => lesson.id === progress?.currentLessonId) ?? SENTENCE_LESSONS[0];
   const completed = progress?.completedLessonIds.length ?? 0;
+  const currentLevel = COURSE_LEVELS.find((level) => level.id === currentLesson.levelId) ?? COURSE_LEVELS[0];
   const dailyPct = Math.min(1, (progress?.todayMinutes ?? 0) / (progress?.dailyGoalMinutes ?? 10));
 
   return (
@@ -61,7 +62,7 @@ export default function LearningHome() {
         >
           <View style={styles.continueTop}>
             <View style={styles.levelBadge}>
-              <Text style={styles.levelBadgeText}>LEVEL 0 · FOUNDATION</Text>
+              <Text style={styles.levelBadgeText}>LEVEL {currentLevel.id} · {currentLevel.title.toUpperCase()}</Text>
             </View>
             <View style={styles.timeChip}>
               <Clock3 size={13} color="rgba(255,255,255,.9)" />
@@ -121,11 +122,12 @@ export default function LearningHome() {
         </View>
         <View style={styles.levelList}>
           {COURSE_LEVELS.map((level) => {
-            const active = level.id === 0;
+            const active = level.id === currentLevel.id;
+            const passed = level.id < currentLevel.id;
             return (
               <View key={level.id} style={[styles.levelCard, active && styles.levelCardActive]}>
                 <View style={[styles.levelNumber, { backgroundColor: level.color + '22' }]}>
-                  {active && completed > 0 ? (
+                  {passed ? (
                     <Check size={20} color={level.color} strokeWidth={2.5} />
                   ) : active ? (
                     <BookOpenCheck size={20} color={level.color} />

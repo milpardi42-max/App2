@@ -1,3 +1,5 @@
+import { EXPANDED_SENTENCE_LESSONS } from './courseContentExpansion';
+
 export type CourseLevelId = 0 | 1 | 2 | 3 | 4;
 
 export interface CourseSentence {
@@ -78,7 +80,7 @@ export const COURSE_LEVELS: CourseLevel[] = [
   },
 ];
 
-export const SENTENCE_LESSONS: SentenceLesson[] = [
+const CORE_SENTENCE_LESSONS: SentenceLesson[] = [
   {
     id: 'foundation-introducing-yourself',
     levelId: 0,
@@ -271,5 +273,8 @@ export const SENTENCE_LESSONS: SentenceLesson[] = [
     ],
   },
 ];
+
+export const SENTENCE_LESSONS: SentenceLesson[] = [...CORE_SENTENCE_LESSONS, ...EXPANDED_SENTENCE_LESSONS]
+  .sort((a, b) => a.order - b.order);
 
 export const getSentenceLesson = (id: string) => SENTENCE_LESSONS.find((lesson) => lesson.id === id);
