@@ -1,18 +1,52 @@
-import { useMemo, useState } from 'react';
-import { Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ArrowRight, Copy, Link2, QrCode, Send, ShieldCheck, UserPlus } from 'lucide-react-native';
+import { ArrowRight, Copy, Link2, QrCode, RefreshCw, Send, ShieldCheck, UserPlus } from 'lucide-react-native';
+import { claimRealContactInvite, createRealContactInvite } from '@/lib/conversations';
 import { Colors, Radius, Spacing, Typography } from '@/lib/theme';
 import { toPersianDigits } from '@/lib/format';
 
 export default function InviteContactScreen() {
   const router = useRouter();
-  const inviteCode = useMemo(() => String(Math.floor(100000 + Math.random() * 900000)), []);
   const [mode, setMode] = useState<'invite' | 'join'>('invite');
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const createInvite = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setInviteCode(await createRealContactInvite());
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'ساخت کد دعوت انجام نشد.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    void createInvite();
+  }, []);
 
   const shareInvite = async () => {
+    if (!inviteCode) return;
     await Share.share({ message: `برای تمرین خصوصی انگلیسی در Companion English، این کد دعوت را وارد کن: ${inviteCode}` });
+  };
+
+  const claimInvite = async () => {
+    if (code.length !== 6 || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const conversationId = await claimRealContactInvite(code);
+      router.replace({ pathname: '/conversations/human/[conversationId]', params: { conversationId } } as never);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'اتصال مخاطب انجام نشد.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -24,29 +58,36 @@ export default function InviteContactScreen() {
 
       <View style={styles.content}>
         <View style={styles.tabs}>
-          <Pressable style={[styles.tab, mode === 'invite' && styles.tabActive]} onPress={() => setMode('invite')}><Text style={[styles.tabText, mode === 'invite' && styles.tabTextActive]}>دعوت دوست</Text></Pressable>
-          <Pressable style={[styles.tab, mode === 'join' && styles.tabActive]} onPress={() => setMode('join')}><Text style={[styles.tabText, mode === 'join' && styles.tabTextActive]}>واردکردن کد</Text></Pressable>
+          <Pressable style={[styles.tab, mode === 'invite' && styles.tabActive]} onPress={() => { setMode('invite'); setError(null); }}><Text style={[styles.tabText, mode === 'invite' && styles.tabTextActive]}>دعوت دوست</Text></Pressable>
+          <Pressable style={[styles.tab, mode === 'join' && styles.tabActive]} onPress={() => { setMode('join'); setError(null); }}><Text style={[styles.tabText, mode === 'join' && styles.tabTextActive]}>واردکردن کد</Text></Pressable>
         </View>
 
         {mode === 'invite' ? (
           <View style={styles.card}>
             <View style={styles.icon}><QrCode size={34} color={Colors.primary[400]} /></View>
             <Text style={styles.cardTitle}>کد دعوت شما</Text>
-            <Text style={styles.cardDesc}>این کد را فقط برای فردی بفرستید که می‌خواهید با او انگلیسی تمرین کنید.</Text>
-            <View style={styles.codeBox}><Text style={styles.code}>{toPersianDigits(inviteCode)}</Text><Copy size={18} color={Colors.neutral[500]} /></View>
-            <Pressable style={styles.primary} onPress={() => void shareInvite()}><Send size={18} color={Colors.onColor} /><Text style={styles.primaryText}>ارسال کد دعوت</Text></Pressable>
+            <Text style={styles.cardDesc}>این کد ۲۴ ساعت اعتبار دارد. آن را فقط برای فرد موردنظرتان ارسال کنید.</Text>
+            <View style={styles.codeBox}>
+              {busy && !inviteCode ? <ActivityIndicator color={Colors.primary[400]} /> : <Text style={styles.code}>{inviteCode ? toPersianDigits(inviteCode) : '------'}</Text>}
+              <Copy size={18} color={Colors.neutral[500]} />
+            </View>
+            <Pressable style={[styles.primary, !inviteCode && styles.disabled]} disabled={!inviteCode} onPress={() => void shareInvite()}><Send size={18} color={Colors.onColor} /><Text style={styles.primaryText}>ارسال کد دعوت</Text></Pressable>
+            {!inviteCode && !busy ? <Pressable style={styles.retry} onPress={() => void createInvite()}><RefreshCw size={15} color={Colors.primary[300]} /><Text style={styles.retryText}>تلاش دوباره</Text></Pressable> : null}
           </View>
         ) : (
           <View style={styles.card}>
             <View style={styles.icon}><UserPlus size={34} color={Colors.accent[400]} /></View>
             <Text style={styles.cardTitle}>کد دوستتان را وارد کنید</Text>
-            <Text style={styles.cardDesc}>پس از ارسال درخواست، مخاطب باید اتصال را تأیید کند.</Text>
+            <Text style={styles.cardDesc}>پس از تأیید کد، گفتگوی خصوصی شما فوراً ساخته می‌شود.</Text>
             <TextInput style={styles.input} value={code} onChangeText={(text) => setCode(text.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad" maxLength={6} placeholder="------" placeholderTextColor={Colors.neutral[700]} textAlign="center" />
-            <Pressable style={[styles.primary, code.length !== 6 && styles.disabled]} disabled={code.length !== 6}><Link2 size={18} color={Colors.onColor} /><Text style={styles.primaryText}>ارسال درخواست اتصال</Text></Pressable>
+            <Pressable style={[styles.primary, (code.length !== 6 || busy) && styles.disabled]} disabled={code.length !== 6 || busy} onPress={() => void claimInvite()}>
+              {busy ? <ActivityIndicator color={Colors.onColor} /> : <><Link2 size={18} color={Colors.onColor} /><Text style={styles.primaryText}>اتصال و شروع گفتگو</Text></>}
+            </Pressable>
           </View>
         )}
 
-        <View style={styles.security}><ShieldCheck size={19} color={Colors.success[400]} /><Text style={styles.securityText}>پیام‌ها فقط برای اعضای همان گفتگو قابل مشاهده خواهند بود. هر زمان بخواهید می‌توانید اتصال را قطع کنید.</Text></View>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <View style={styles.security}><ShieldCheck size={19} color={Colors.success[400]} /><Text style={styles.securityText}>پیام‌ها با قوانین امنیتی Supabase فقط برای دو عضو همان گفتگو قابل مشاهده هستند.</Text></View>
       </View>
     </View>
   );
@@ -75,6 +116,9 @@ const styles = StyleSheet.create({
   primary: { width: '100%', minHeight: 50, borderRadius: Radius.lg, backgroundColor: Colors.primary[500], flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 8 },
   primaryText: { fontFamily: Typography.fontFamily, fontSize: Typography.sizes.sm, fontWeight: Typography.weights.bold, color: Colors.onColor },
   disabled: { opacity: .4 },
+  retry: { flexDirection: 'row-reverse', alignItems: 'center', gap: 5, marginTop: Spacing.md },
+  retryText: { fontFamily: Typography.fontFamily, fontSize: Typography.sizes.xs, color: Colors.primary[300] },
+  error: { fontFamily: Typography.fontFamily, fontSize: Typography.sizes.sm, color: Colors.error[300], textAlign: 'center', marginTop: Spacing.md, lineHeight: 21 },
   security: { marginTop: Spacing.lg, borderRadius: Radius.lg, padding: Spacing.md, backgroundColor: Colors.success[500] + '0D', flexDirection: 'row-reverse', alignItems: 'flex-start', gap: 8 },
   securityText: { flex: 1, fontFamily: Typography.fontFamily, fontSize: Typography.sizes.xs, color: Colors.neutral[500], textAlign: 'right', lineHeight: 19 },
 });
