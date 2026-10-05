@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { ArrowRight, Bot, Languages, Lightbulb, Mic, Send, Sparkles, Volume2 } from 'lucide-react-native';
+import { askEmma, type EmmaCorrection } from '@/lib/emma';
 import { Colors, Radius, Spacing, Typography } from '@/lib/theme';
 
 type ChatMessage = { id: string; from: 'emma' | 'learner'; text: string; translation?: string };
@@ -12,7 +13,7 @@ const initialMessages: ChatMessage[] = [
   { id: '2', from: 'emma', text: 'Let’s practice introducing ourselves. What is your name?', translation: 'بیایید معرفی خودمان را تمرین کنیم. اسم شما چیست؟' },
 ];
 
-const suggestions = ['My name is Sara.', 'Hello Emma! Nice to meet you.', 'I am ready to practice.'];
+const initialSuggestions = ['My name is Sara.', 'Hello Emma! Nice to meet you.', 'I am ready to practice.'];
 
 export default function EmmaChat() {
   const router = useRouter();
@@ -20,19 +21,35 @@ export default function EmmaChat() {
   const [messages, setMessages] = useState(initialMessages);
   const [input, setInput] = useState('');
   const [showTools, setShowTools] = useState(false);
+  const [suggestions, setSuggestions] = useState(initialSuggestions);
+  const [thinking, setThinking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [correction, setCorrection] = useState<EmmaCorrection | null>(null);
 
-  const send = (value = input) => {
+  const send = async (value = input) => {
     const text = value.trim();
-    if (!text) return;
-    setMessages((current) => [...current, { id: `${Date.now()}-me`, from: 'learner', text }]);
+    if (!text || thinking) return;
+    const learnerMessage: ChatMessage = { id: `${Date.now()}-me`, from: 'learner', text };
+    const nextMessages = [...messages, learnerMessage];
+    setMessages(nextMessages);
     setInput('');
-    setTimeout(() => {
-      setMessages((current) => [
-        ...current,
-        { id: `${Date.now()}-emma`, from: 'emma', text: 'Nice to meet you! Where are you from?', translation: 'از آشنایی خوشحالم! اهل کجا هستید؟' },
-      ]);
+    setThinking(true);
+    setError(null);
+    setCorrection(null);
+    try {
+      const result = await askEmma(
+        nextMessages.map((message) => ({ role: message.from === 'emma' ? 'assistant' as const : 'user' as const, content: message.text })),
+        { level: 'Foundation', situation: 'introducing yourself' },
+      );
+      setMessages((current) => [...current, { id: `${Date.now()}-emma`, from: 'emma', text: result.reply, translation: result.translation }]);
+      if (result.suggestions.length) setSuggestions(result.suggestions);
+      setCorrection(result.correction);
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
-    }, 550);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'پاسخ Emma دریافت نشد.');
+    } finally {
+      setThinking(false);
+    }
   };
 
   return (
@@ -60,6 +77,16 @@ export default function EmmaChat() {
             ) : null}
           </View>
         ))}
+        {thinking ? <View style={[styles.bubble, styles.theirs, styles.thinking]}><ActivityIndicator size="small" color={Colors.accent[400]} /><Text style={styles.thinkingText}>Emma در حال نوشتن است…</Text></View> : null}
+        {correction ? (
+          <View style={styles.correctionCard}>
+            <Text style={styles.correctionTitle}>اصلاح خصوصی</Text>
+            <Text style={styles.correctionOld}>{correction.original}</Text>
+            <Text style={styles.correctionNew}>{correction.improved}</Text>
+            <Text style={styles.correctionExplanation}>{correction.explanationFa}</Text>
+          </View>
+        ) : null}
+        {error ? <Text style={styles.error}>{error}</Text> : null}
       </ScrollView>
 
       <View style={styles.coachArea}>
@@ -89,8 +116,8 @@ export default function EmmaChat() {
           multiline
           textAlign="right"
         />
-        <Pressable style={[styles.send, !input.trim() && styles.sendDisabled]} disabled={!input.trim()} onPress={() => send()}>
-          <Send size={18} color={Colors.onColor} />
+        <Pressable style={[styles.send, (!input.trim() || thinking) && styles.sendDisabled]} disabled={!input.trim() || thinking} onPress={() => void send()}>
+          {thinking ? <ActivityIndicator size="small" color={Colors.onColor} /> : <Send size={18} color={Colors.onColor} />}
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -120,6 +147,14 @@ const styles = StyleSheet.create({
   translation: { fontFamily: Typography.fontFamily, fontSize: Typography.sizes.xs, color: Colors.neutral[400], textAlign: 'right', lineHeight: 19, marginTop: 7, paddingTop: 7, borderTopWidth: 1, borderTopColor: Colors.neutral[700] + '80' },
   listen: { flexDirection: 'row-reverse', alignItems: 'center', gap: 4, marginTop: 7, alignSelf: 'flex-end' },
   listenText: { fontFamily: Typography.fontFamily, fontSize: 9, color: Colors.primary[300] },
+  thinking: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  thinkingText: { fontFamily: Typography.fontFamily, fontSize: Typography.sizes.xs, color: Colors.neutral[500] },
+  correctionCard: { alignSelf: 'stretch', borderRadius: Radius.lg, backgroundColor: Colors.warning[500] + '0D', borderWidth: 1, borderColor: Colors.warning[500] + '25', padding: Spacing.md, marginTop: Spacing.sm },
+  correctionTitle: { fontFamily: Typography.fontFamily, fontSize: Typography.sizes.xs, fontWeight: Typography.weights.bold, color: Colors.warning[300], textAlign: 'right' },
+  correctionOld: { fontSize: 13, color: Colors.error[300], textDecorationLine: 'line-through', marginTop: 7 },
+  correctionNew: { fontSize: 14, color: Colors.success[300], fontWeight: '600', marginTop: 4 },
+  correctionExplanation: { fontFamily: Typography.fontFamily, fontSize: 10, color: Colors.neutral[500], textAlign: 'right', lineHeight: 18, marginTop: 6 },
+  error: { fontFamily: Typography.fontFamily, fontSize: Typography.sizes.xs, color: Colors.error[300], textAlign: 'center', padding: Spacing.sm },
   coachArea: { backgroundColor: Colors.neutral[900], borderTopWidth: 1, borderTopColor: Colors.neutral[800] },
   coachToggle: { minHeight: 38, paddingHorizontal: Spacing.md, flexDirection: 'row-reverse', alignItems: 'center', gap: 6 },
   coachToggleText: { flex: 1, fontFamily: Typography.fontFamily, fontSize: Typography.sizes.xs, color: Colors.warning[300], textAlign: 'right' },
