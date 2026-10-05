@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { mediaDevices, MediaStream, RTCPeerConnection, RTCSessionDescription } from 'react-native-webrtc';
 import { ensureChatIdentity } from './conversations';
-import { RTC_ICE_SERVERS, assertProductionTurnConfigured } from './rtcConfig';
+import { getRtcIceServers } from './rtcConfig';
 import { supabase } from './supabase';
 import type { VoiceCallPhase, VoiceCallState } from './voiceCall';
 
@@ -57,11 +57,11 @@ export function useVoiceCall(conversationId: string, contactName?: string): Voic
   }, []);
 
   const preparePeer = useCallback(async () => {
-    assertProductionTurnConfigured();
+    const iceServers = await getRtcIceServers(true);
     const permissionStream = await mediaDevices.getUserMedia({ audio: true, video: false });
     const stream = permissionStream as MediaStream;
     streamRef.current = stream;
-    const pc = new RTCPeerConnection({ iceServers: RTC_ICE_SERVERS } as any);
+    const pc = new RTCPeerConnection({ iceServers } as any);
     pcRef.current = pc;
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
     (pc as any).onconnectionstatechange = () => {

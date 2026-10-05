@@ -6,7 +6,7 @@ import {
   RTCSessionDescription,
 } from 'react-native-webrtc';
 import { supabase } from './supabase';
-import { RTC_ICE_SERVERS } from './rtcConfig';
+import { getRtcIceServers } from './rtcConfig';
 
 export type SharePhase = 'idle' | 'requesting' | 'waiting' | 'connected' | 'stopping' | 'error';
 
@@ -87,7 +87,8 @@ export function useScreenBroadcaster(deviceId: string | null) {
       } as never)) as MediaStream;
       streamRef.current = stream;
 
-      const pc = new RTCPeerConnection({ iceServers: RTC_ICE_SERVERS });
+      const iceServers = await getRtcIceServers(true);
+      const pc = new RTCPeerConnection({ iceServers } as any);
       pcRef.current = pc;
       stream.getTracks().forEach((track) => {
         pc.addTrack(track, stream);
