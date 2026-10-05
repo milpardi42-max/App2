@@ -55,7 +55,8 @@ Deno.serve(async (request) => {
     const form = await request.formData();
     const audio = form.get('audio');
     const expected = String(form.get('expected') ?? '').trim();
-    if (!(audio instanceof File) || !expected) return json({ error: 'Audio and expected sentence are required' }, 400);
+    const mode = form.get('mode') === 'transcribe' ? 'transcribe' : 'evaluate';
+    if (!(audio instanceof File) || (mode === 'evaluate' && !expected)) return json({ error: 'Required speech data is missing' }, 400);
     if (expected.length > 300) return json({ error: 'Sentence is too long' }, 400);
     if (audio.size > 8 * 1024 * 1024) return json({ error: 'Audio file is too large' }, 413);
 
@@ -67,7 +68,7 @@ Deno.serve(async (request) => {
     openAIForm.append('model', Deno.env.get('OPENAI_TRANSCRIBE_MODEL') || 'whisper-1');
     openAIForm.append('language', 'en');
     openAIForm.append('response_format', 'json');
-    openAIForm.append('prompt', expected);
+    if (expected) openAIForm.append('prompt', expected);
 
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
@@ -81,6 +82,8 @@ Deno.serve(async (request) => {
 
     const transcription = await response.json();
     const recognized = String(transcription.text ?? '').trim();
+    if (mode === 'transcribe') return json({ recognized });
+
     const expectedWords = words(expected);
     const recognizedWords = words(recognized);
     const distance = editDistance(expectedWords, recognizedWords);

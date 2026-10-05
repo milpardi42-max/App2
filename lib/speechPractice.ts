@@ -9,11 +9,7 @@ export interface SpeechEvaluation {
   feedbackFa: string;
 }
 
-export async function evaluateSpokenSentence(audioUri: string, expected: string): Promise<SpeechEvaluation> {
-  await ensureChatIdentity();
-  const form = new FormData();
-  form.append('expected', expected);
-
+async function appendAudio(form: FormData, audioUri: string): Promise<void> {
   if (Platform.OS === 'web') {
     const audioBlob = await fetch(audioUri).then((response) => response.blob());
     form.append('audio', audioBlob, 'speech.webm');
@@ -24,6 +20,14 @@ export async function evaluateSpokenSentence(audioUri: string, expected: string)
       type: 'audio/m4a',
     } as unknown as Blob);
   }
+}
+
+export async function evaluateSpokenSentence(audioUri: string, expected: string): Promise<SpeechEvaluation> {
+  await ensureChatIdentity();
+  const form = new FormData();
+  form.append('expected', expected);
+  form.append('mode', 'evaluate');
+  await appendAudio(form, audioUri);
 
   const { data, error } = await supabase.functions.invoke('speech-evaluate', { body: form });
   if (error) throw new Error('بررسی صدا انجام نشد. اتصال اینترنت را بررسی کنید.');
@@ -36,4 +40,17 @@ export async function evaluateSpokenSentence(audioUri: string, expected: string)
     missingWords: Array.isArray(data.missingWords) ? data.missingWords.map(String) : [],
     feedbackFa: String(data.feedbackFa || ''),
   };
+}
+
+export async function transcribeLearnerSpeech(audioUri: string): Promise<string> {
+  await ensureChatIdentity();
+  const form = new FormData();
+  form.append('mode', 'transcribe');
+  await appendAudio(form, audioUri);
+  const { data, error } = await supabase.functions.invoke('speech-evaluate', { body: form });
+  if (error) throw new Error('صدای شما به متن تبدیل نشد. اتصال اینترنت را بررسی کنید.');
+  if (data?.error) throw new Error(String(data.error));
+  const recognized = String(data?.recognized || '').trim();
+  if (!recognized) throw new Error('جمله‌ای از صدا تشخیص داده نشد. دوباره و کمی آهسته‌تر بگویید.');
+  return recognized;
 }

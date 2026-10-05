@@ -30,23 +30,28 @@ Deno.serve(async (request) => {
     if (!apiKey) return json({ error: 'OPENAI_API_KEY is not configured' }, 503);
 
     const body = await request.json();
-    const level = typeof body.level === 'string' ? body.level : 'Foundation';
-    const situation = typeof body.situation === 'string' ? body.situation : 'introducing yourself';
+    const level = typeof body.level === 'string' ? body.level.slice(0, 80) : 'Foundation';
+    const situation = typeof body.situation === 'string' ? body.situation.slice(0, 500) : 'introducing yourself';
+    const targetWords = (Array.isArray(body.targetWords) ? body.targetWords : []).filter((item: unknown) => typeof item === 'string').slice(0, 8).map(String);
+    const suggestionCount = Math.max(1, Math.min(3, Number(body.suggestionCount) || 3));
     const messages = (Array.isArray(body.messages) ? body.messages : [])
-      .filter((item: InputMessage) => item && ['user', 'assistant'].includes(item.role) && typeof item.content === 'string')
-      .slice(-12);
+      .filter((item: InputMessage) => item && ['user', 'assistant'].includes(item.role) && typeof item.content === 'string' && item.content.trim().length > 0)
+      .slice(-12)
+      .map((item: InputMessage) => ({ ...item, content: item.content.slice(0, 1000) }));
     if (!messages.length) return json({ error: 'At least one message is required' }, 400);
 
     const systemPrompt = `You are Emma, a warm English conversation coach for a Persian-speaking learner.
-Learner level: ${level}. Current situation: ${situation}.
-Keep the conversation natural, encouraging, and sentence-first.
+Learner level: ${level}. Current lesson situation: ${situation}.
+Words already introduced in the current lesson: ${targetWords.join(', ') || 'none provided'}.
+Keep the conversation natural, encouraging, and sentence-first. Stay close to the current lesson unless the learner clearly changes the topic.
+Naturally reuse at most one introduced word when it fits; never force vocabulary into an unnatural sentence.
 For Foundation/A1 use one or two short English sentences and common words.
 Never overwhelm the learner. Correct only the most important error, privately and kindly.
 Return strict JSON with these keys:
 reply: your English reply;
 translation: concise Persian translation of your reply;
 correction: null or an object with original, improved, and explanationFa;
-suggestions: exactly three short English response suggestions.
+suggestions: exactly ${suggestionCount} short English response suggestion${suggestionCount === 1 ? '' : 's'}.
 Do not include markdown.`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -75,7 +80,7 @@ Do not include markdown.`;
       reply: String(result.reply || ''),
       translation: String(result.translation || ''),
       correction: result.correction || null,
-      suggestions: Array.isArray(result.suggestions) ? result.suggestions.slice(0, 3).map(String) : [],
+      suggestions: Array.isArray(result.suggestions) ? result.suggestions.slice(0, suggestionCount).map(String) : [],
     });
   } catch (error) {
     console.error(error);

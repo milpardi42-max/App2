@@ -1,16 +1,19 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
-import { ArrowRight, Bot, Languages, Lightbulb, Mic, Send, Sparkles, Volume2 } from 'lucide-react-native';
-import { askEmma, type EmmaCorrection } from '@/lib/emma';
+import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
+import { ArrowRight, Bot, Languages, Lightbulb, Mic, Send, Sparkles, Square, Volume2 } from 'lucide-react-native';
+import { askEmma, getEmmaPracticeContext, type EmmaCorrection, type EmmaPracticeContext } from '@/lib/emma';
+import { loadEmmaHistory, saveEmmaHistory, type EmmaStoredMessage } from '@/lib/emmaHistory';
+import { transcribeLearnerSpeech } from '@/lib/speechPractice';
 import { Colors, Radius, Spacing, Typography } from '@/lib/theme';
 
-type ChatMessage = { id: string; from: 'emma' | 'learner'; text: string; translation?: string };
+type ChatMessage = EmmaStoredMessage;
 
 const initialMessages: ChatMessage[] = [
   { id: '1', from: 'emma', text: 'Hi! I’m Emma, your English practice partner.', translation: 'سلام! من اِما هستم، همراه تمرین انگلیسی شما.' },
-  { id: '2', from: 'emma', text: 'Let’s practice introducing ourselves. What is your name?', translation: 'بیایید معرفی خودمان را تمرین کنیم. اسم شما چیست؟' },
+  { id: '2', from: 'emma', text: 'Let’s practice your current lesson. Write or say one sentence to begin.', translation: 'بیایید درس فعلی شما را تمرین کنیم. برای شروع یک جمله بنویسید یا بگویید.' },
 ];
 
 const initialSuggestions = ['My name is Sara.', 'Hello Emma! Nice to meet you.', 'I am ready to practice.'];
@@ -25,13 +28,25 @@ export default function EmmaChat() {
   const [thinking, setThinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [correction, setCorrection] = useState<EmmaCorrection | null>(null);
+  const [context, setContext] = useState<EmmaPracticeContext | null>(null);
+  const [transcribing, setTranscribing] = useState(false);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(recorder, 250);
 
-  const send = async (value = input) => {
+  useEffect(() => {
+    void Promise.all([loadEmmaHistory(initialMessages), getEmmaPracticeContext()]).then(([history, nextContext]) => {
+      setMessages(history);
+      setContext(nextContext);
+    });
+  }, []);
+
+  const send = async (value = input, speakReply = false) => {
     const text = value.trim();
-    if (!text || thinking) return;
+    if (!text || thinking || (!speakReply && (transcribing || recorderState.isRecording))) return;
     const learnerMessage: ChatMessage = { id: `${Date.now()}-me`, from: 'learner', text };
     const nextMessages = [...messages, learnerMessage];
     setMessages(nextMessages);
+    void saveEmmaHistory(nextMessages);
     setInput('');
     setThinking(true);
     setError(null);
@@ -39,16 +54,57 @@ export default function EmmaChat() {
     try {
       const result = await askEmma(
         nextMessages.map((message) => ({ role: message.from === 'emma' ? 'assistant' as const : 'user' as const, content: message.text })),
-        { level: 'Foundation', situation: 'introducing yourself' },
+        context || undefined,
       );
-      setMessages((current) => [...current, { id: `${Date.now()}-emma`, from: 'emma', text: result.reply, translation: result.translation }]);
-      if (result.suggestions.length) setSuggestions(result.suggestions);
+      const emmaMessage: ChatMessage = { id: `${Date.now()}-emma`, from: 'emma', text: result.reply, translation: result.translation };
+      setMessages((current) => {
+        const updated = [...current, emmaMessage];
+        void saveEmmaHistory(updated);
+        return updated;
+      });
+      setSuggestions(result.suggestions);
       setCorrection(result.correction);
+      if (speakReply) Speech.speak(result.reply, { language: 'en-US', rate: .82 });
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'پاسخ Emma دریافت نشد.');
     } finally {
       setThinking(false);
+    }
+  };
+
+  const startVoiceTurn = async () => {
+    if (thinking || transcribing) return;
+    try {
+      setError(null);
+      Speech.stop();
+      const permission = await requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        setError('برای مکالمه صوتی، اجازه استفاده از میکروفن را فعال کنید.');
+        return;
+      }
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+    } catch {
+      setError('ضبط صدا شروع نشد. دوباره تلاش کنید.');
+    }
+  };
+
+  const stopVoiceTurn = async () => {
+    if (!recorderState.isRecording || transcribing) return;
+    try {
+      await recorder.stop();
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      if (!recorder.uri) throw new Error('صدای ضبط‌شده پیدا نشد.');
+      setTranscribing(true);
+      setError(null);
+      const transcript = await transcribeLearnerSpeech(recorder.uri);
+      setTranscribing(false);
+      await send(transcript, true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'صدای شما دریافت نشد.');
+      setTranscribing(false);
     }
   };
 
@@ -61,11 +117,20 @@ export default function EmmaChat() {
           <View style={styles.nameRow}><Text style={styles.name}>Emma</Text><Bot size={14} color={Colors.accent[400]} /></View>
           <Text style={styles.status}>آنلاین · مربی هوش مصنوعی</Text>
         </View>
-        <Pressable style={styles.voiceCall}><Mic size={19} color={Colors.primary[300]} /></Pressable>
+        <Pressable
+          disabled={thinking || transcribing}
+          style={[styles.voiceCall, recorderState.isRecording && styles.voiceCallActive]}
+          onPress={() => recorderState.isRecording ? void stopVoiceTurn() : void startVoiceTurn()}
+        >
+          {transcribing ? <ActivityIndicator size="small" color={Colors.primary[300]} /> : recorderState.isRecording ? <Square size={15} color={Colors.onColor} fill={Colors.onColor} /> : <Mic size={19} color={Colors.primary[300]} />}
+        </Pressable>
       </View>
+      {recorderState.isRecording || transcribing ? (
+        <View style={styles.voiceStatus}><Text style={styles.voiceStatusText}>{recorderState.isRecording ? `در حال شنیدن شما · ${Math.max(1, Math.round(recorderState.durationMillis / 1000))} ثانیه · برای پایان دوباره بزنید` : 'در حال تبدیل صدای شما به متن…'}</Text></View>
+      ) : null}
 
       <ScrollView ref={scrollRef} style={styles.messages} contentContainerStyle={styles.messageContent} onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}>
-        <View style={styles.topicChip}><Sparkles size={13} color={Colors.accent[400]} /><Text style={styles.topicText}>موضوع امروز: معرفی خود</Text></View>
+        <View style={styles.topicChip}><Sparkles size={13} color={Colors.accent[400]} /><Text style={styles.topicText}>موضوع امروز: {context?.lessonTitleFa || 'درس فعلی شما'}</Text></View>
         {messages.map((message) => (
           <View key={message.id} style={[styles.bubble, message.from === 'learner' ? styles.mine : styles.theirs]}>
             <Text style={styles.messageText}>{message.text}</Text>
@@ -116,8 +181,8 @@ export default function EmmaChat() {
           multiline
           textAlign="right"
         />
-        <Pressable style={[styles.send, (!input.trim() || thinking) && styles.sendDisabled]} disabled={!input.trim() || thinking} onPress={() => void send()}>
-          {thinking ? <ActivityIndicator size="small" color={Colors.onColor} /> : <Send size={18} color={Colors.onColor} />}
+        <Pressable style={[styles.send, (!input.trim() || thinking || transcribing || recorderState.isRecording) && styles.sendDisabled]} disabled={!input.trim() || thinking || transcribing || recorderState.isRecording} onPress={() => void send()}>
+          {thinking || transcribing ? <ActivityIndicator size="small" color={Colors.onColor} /> : <Send size={18} color={Colors.onColor} />}
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -136,6 +201,9 @@ const styles = StyleSheet.create({
   name: { fontSize: 18, fontWeight: '700', color: Colors.neutral[100] },
   status: { fontFamily: Typography.fontFamily, fontSize: 10, color: Colors.success[400], textAlign: 'right', marginTop: 2 },
   voiceCall: { width: 39, height: 39, borderRadius: Radius.full, backgroundColor: Colors.primary[500] + '15', alignItems: 'center', justifyContent: 'center' },
+  voiceCallActive: { backgroundColor: Colors.error[500] },
+  voiceStatus: { minHeight: 34, paddingHorizontal: Spacing.md, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.error[500] + '0D', borderBottomWidth: 1, borderBottomColor: Colors.error[500] + '20' },
+  voiceStatusText: { fontFamily: Typography.fontFamily, fontSize: 10, color: Colors.error[300], textAlign: 'center' },
   messages: { flex: 1 },
   messageContent: { padding: Spacing.md, gap: Spacing.sm },
   topicChip: { alignSelf: 'center', borderRadius: Radius.full, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: Colors.accent[500] + '10', flexDirection: 'row-reverse', gap: 5, alignItems: 'center', marginBottom: Spacing.md },
