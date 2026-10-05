@@ -67,8 +67,8 @@ export const ADVANCED_SENTENCE_LESSONS_6: SentenceLesson[] = [
       { id: 'fishing-bait', en: 'We need fresh bait for the fishing trip.', fa: 'برای سفر ماهیگیری به طعمه تازه نیاز داریم.', pronunciation: 'وی نید فِرِش بِیت فُر ذِ فیشینگ تِریپ', vocabulary: [{ word: 'bait', meaning: 'طعمه', essential504: true }] },
       { id: 'fishing-beckon', en: 'Sam beckoned us to come closer to the river.', fa: 'سام با اشاره از ما خواست به رودخانه نزدیک‌تر شویم.', pronunciation: 'سَم بِکِند آس تو کام کِلوسِر تو ذِ ریوِر', vocabulary: [{ word: 'beckon', meaning: 'با اشاره فراخواندن', essential504: true }] },
       { id: 'fishing-bulky', en: 'This bulky cooler is difficult to carry.', fa: 'حمل این یخدان بزرگ و جاگیر دشوار است.', pronunciation: 'ذیس بالکی کولِر ایز دیفیکِلت تو کَری', vocabulary: [{ word: 'bulky', meaning: 'بزرگ و جاگیر', essential504: true }] },
-      { id: 'fishing-caution', en: 'Use caution near the wet rocks.', fa: 'نزدیک سنگ‌های خیس احتیاط کنید.', pronunciation: 'یوز کاشِن نیر ذِ وِت راکس', vocabulary: [{ word: 'caution', meaning: 'احتیاط', essential504: true }] },
-      { id: 'fishing-jacket', en: 'Bring a waterproof jacket.', fa: 'یک کاپشن ضدآب همراه بیاورید.', pronunciation: 'بِرینگ اَ واتِرپروف جَکِت', vocabulary: [{ word: 'waterproof', meaning: 'ضدآب' }] },
+      { id: 'fishing-caution', en: 'Use caution near the wet rocks.', fa: 'نزدیک سنگ‌های خیس احتیاط کنید.', pronunciation: 'یوز کاشِن نیر ذِ وِت راکس', vocabulary: [{ word: 'caution', meaning: 'احتیاط' }] },
+      { id: 'fishing-keg', en: 'We packed drinking water in a small keg.', fa: 'آب آشامیدنی را در یک بشکه کوچک گذاشتیم.', pronunciation: 'وی پَکت دِرینکینگ واتِر این اَ اِسمال کِگ', vocabulary: [{ word: 'keg', meaning: 'بشکه کوچک', essential504: true }] },
       { id: 'fishing-return', en: 'We will return before sunset.', fa: 'پیش از غروب برمی‌گردیم.', pronunciation: 'وی ویل ریتِرن بیفور سان‌سِت', vocabulary: [{ word: 'sunset', meaning: 'غروب' }] },
     ],
     dialogue: [

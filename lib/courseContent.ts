@@ -5,6 +5,7 @@ import { ADVANCED_SENTENCE_LESSONS_3 } from './courseContentExpansion4';
 import { ADVANCED_SENTENCE_LESSONS_4 } from './courseContentExpansion5';
 import { ADVANCED_SENTENCE_LESSONS_5 } from './courseContentExpansion6';
 import { ADVANCED_SENTENCE_LESSONS_6 } from './courseContentExpansion7';
+import { ADVANCED_SENTENCE_LESSONS_7 } from './courseContentExpansion8';
 
 export type CourseLevelId = 0 | 1 | 2 | 3 | 4;
 
@@ -289,6 +290,7 @@ export const SENTENCE_LESSONS: SentenceLesson[] = [
   ...ADVANCED_SENTENCE_LESSONS_4,
   ...ADVANCED_SENTENCE_LESSONS_5,
   ...ADVANCED_SENTENCE_LESSONS_6,
+  ...ADVANCED_SENTENCE_LESSONS_7,
 ].sort((a, b) => a.order - b.order);
 
 export const getSentenceLesson = (id: string) => SENTENCE_LESSONS.find((lesson) => lesson.id === id);
