@@ -24,13 +24,21 @@ npm run dev -- --web
 
 ## راه‌اندازی Backend با یک دستور
 
-پس از ورود و Link شدن Supabase CLI:
+نیازی به نصب سراسری Supabase CLI نیست. ابتدا (فقط بار اول) وارد حساب شوید و پروژه را Link کنید:
+
+```bash
+npx supabase login
+npx supabase link --project-ref YOUR_PROJECT_REF
+```
+
+`YOUR_PROJECT_REF` همان بخش اول آدرس پروژه است: `https://YOUR_PROJECT_REF.supabase.co`.
+سپس راه‌اندازی کامل با یک دستور انجام می‌شود:
 
 ```bash
 ./scripts/setup-production.sh
 ```
 
-این اسکریپت migration را اجرا و چهار Edge Function موردنیاز را منتشر می‌کند.
+اسکریپت از `npx supabase` استفاده می‌کند، migration را اجرا و چهار Edge Function موردنیاز را منتشر می‌کند.
 
 ## TURN امن
 
