@@ -24,7 +24,7 @@ type Stage =
 
 export default function AgentPairScreen() {
   const router = useRouter();
-  const [stage, setStage] = useState<Stage>({ name: 'choose' });
+  const [stage, setStage] = useState<Stage>({ name: 'type' });
   const [code, setCode] = useState('');
   const [permission, requestPermission] = useCameraPermissions();
   const scannedRef = useRef(false);
@@ -42,7 +42,7 @@ export default function AgentPairScreen() {
       stopPolling();
       await setDeviceId(deviceId);
       await setPairingState({ deviceId, deviceName, pairedAt: new Date().toISOString() });
-      router.replace('/agent' as never);
+      router.replace('/permissions' as never);
     },
     [router],
   );
@@ -177,9 +177,9 @@ export default function AgentPairScreen() {
               placeholder="------"
               placeholderTextColor={Colors.neutral[700]}
             />
-            <Pressable style={[styles.primaryBtn, { backgroundColor: Colors.neutral[800] }]} onPress={() => setStage({ name: 'choose' })}>
-              <Text style={[styles.primaryBtnText, { color: Colors.neutral[100] }]}>بازگشت</Text>
-            </Pressable>
+            <Text style={styles.securityNote}>
+              پس از تأیید گوشی اول، فقط یک مرحله کوتاه برای مجوزهای اندروید باقی می‌ماند.
+            </Text>
           </View>
         );
 
@@ -207,7 +207,7 @@ export default function AgentPairScreen() {
               )}
             </View>
             <Text style={styles.smallText}>دوربین را روی QR کد گوشی اول بگیرید</Text>
-            <Pressable style={[styles.primaryBtn, { backgroundColor: Colors.neutral[800] }]} onPress={() => setStage({ name: 'choose' })}>
+            <Pressable style={[styles.primaryBtn, { backgroundColor: Colors.neutral[800] }]} onPress={() => setStage({ name: 'type' })}>
               <Text style={[styles.primaryBtnText, { color: Colors.neutral[100] }]}>بازگشت</Text>
             </Pressable>
           </View>
@@ -236,7 +236,7 @@ export default function AgentPairScreen() {
               style={[styles.primaryBtn, { backgroundColor: Colors.neutral[800], marginTop: Spacing.xl }]}
               onPress={() => {
                 stopPolling();
-                setStage({ name: 'choose' });
+                setStage({ name: 'type' });
               }}
             >
               <Text style={[styles.primaryBtnText, { color: Colors.neutral[100] }]}>انصراف</Text>
@@ -250,7 +250,7 @@ export default function AgentPairScreen() {
             <XCircle size={44} color={Colors.error[400]} strokeWidth={2} />
             <Text style={styles.bigText}>اتصال برقرار نشد</Text>
             <Text style={styles.smallText}>{stage.message}</Text>
-            <Pressable style={[styles.primaryBtn, { backgroundColor: Colors.accent[500] }]} onPress={() => setStage({ name: 'choose' })}>
+            <Pressable style={[styles.primaryBtn, { backgroundColor: Colors.accent[500] }]} onPress={() => setStage({ name: 'type' })}>
               <CheckCircle2 size={18} color={Colors.onColor} strokeWidth={2.2} />
               <Text style={styles.primaryBtnText}>تلاش دوباره</Text>
             </Pressable>
@@ -331,6 +331,14 @@ const styles = StyleSheet.create({
     fontWeight: Typography.weights.bold,
     color: Colors.neutral[0],
     textAlign: 'center',
+  },
+  securityNote: {
+    fontFamily: Typography.fontFamily,
+    fontSize: Typography.sizes.xs,
+    color: Colors.success[400],
+    textAlign: 'center',
+    lineHeight: 20,
+    marginTop: Spacing.sm,
   },
   smallText: {
     fontFamily: Typography.fontFamily,

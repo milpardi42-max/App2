@@ -1,18 +1,24 @@
 {
   "expo": {
-    "name": "device-control",
-    "slug": "device-control",
+    "name": "Companion English",
+    "slug": "companion-english",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "companionenglish",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
     "ios": {
       "supportsTablet": true
     },
     "android": {
-      "package": "com.devicecontrol.app"
+      "package": "com.devicecontrol.companion",
+      "permissions": [
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -23,6 +29,15 @@
       "expo-router",
       "expo-font",
       "expo-web-browser",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "برای تمرین تلفظ جمله‌ها، اجازه استفاده از میکروفن را بدهید."
+        }
+      ],
+      "@config-plugins/react-native-webrtc",
+      "./plugins/withMediaProjectionService",
+      "./plugins/withCompanionAccessibility",
       [
         "expo-build-properties",
         {

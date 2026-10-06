@@ -1,5 +1,5 @@
 {
-  "name": "bolt-expo-starter",
+  "name": "companion-english",
   "main": "index.js",
   "version": "1.0.0",
   "private": true,
@@ -8,10 +8,12 @@
     "build:web": "expo export --platform web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
+    "validate:content": "node scripts/validate-course-content.mjs",
     "android": "expo run:android",
     "ios": "expo run:ios"
   },
   "dependencies": {
+    "@config-plugins/react-native-webrtc": "^13.0.0",
     "@expo-google-fonts/vazirmatn": "^0.4.1",
     "@expo/vector-icons": "^15.0.2",
     "@lucide/lab": "^0.1.2",
@@ -21,6 +23,7 @@
     "@supabase/supabase-js": "^2.58.0",
     "expo": "^54.0.10",
     "expo-application": "~7.0.8",
+    "expo-audio": "~1.0.13",
     "expo-battery": "~10.0.8",
     "expo-blur": "~15.0.7",
     "expo-build-properties": "~1.0.9",
@@ -51,6 +54,7 @@
     "react-native-svg": "15.12.1",
     "react-native-url-polyfill": "^2.0.0",
     "react-native-web": "^0.21.0",
+    "react-native-webrtc": "^124.0.6",
     "react-native-webview": "13.15.0"
   },
   "devDependencies": {

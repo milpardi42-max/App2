@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const STORAGE_KEY = 'agent_device_id';
 const SELECTED_DEVICE_KEY = 'selected_device_id';
 const PAIRING_STATE_KEY = 'agent_pairing_state';
+const ONBOARDING_COMPLETE_KEY = 'companion_onboarding_complete';
 
 // Values are cached in memory as well so reads stay stable even if a
 // transient AsyncStorage error occurs, and so the first read in a session
@@ -77,4 +78,12 @@ export async function getPairingState(): Promise<PairingState | null> {
 export const setPairingState = (state: PairingState) =>
   set(PAIRING_STATE_KEY, JSON.stringify(state));
 
-export const clearPairingState = () => clear(PAIRING_STATE_KEY);
+export const clearPairingState = async () => {
+  await clear(PAIRING_STATE_KEY);
+  await clear(ONBOARDING_COMPLETE_KEY);
+};
+
+export const isOnboardingComplete = async () =>
+  (await get(ONBOARDING_COMPLETE_KEY)) === 'true';
+
+export const setOnboardingComplete = () => set(ONBOARDING_COMPLETE_KEY, 'true');
